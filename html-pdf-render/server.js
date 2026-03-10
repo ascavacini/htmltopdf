@@ -31,7 +31,7 @@ async function closePageSafely(page) {
   } catch {}
 }
 
-async function cancelActiveJob(reason = "Cancelled by newer request") {
+async function cancelActiveJob(reason = "Cancelled", sendResponse = true) {
   if (!activeJob) return;
 
   const job = activeJob;
@@ -43,14 +43,21 @@ async function cancelActiveJob(reason = "Cancelled by newer request") {
 
   await closePageSafely(job.page);
 
-  try {
-    if (!job.res.headersSent) {
-      job.res.status(409).json({
-        error: reason
-      });
-    }
-  } catch {}
+  if (sendResponse) {
+    try {
+      if (!job.res.headersSent) {
+        job.res.status(409).json({ error: reason });
+      }
+    } catch {}
+  }
 }
+
+app.get("/", (req, res) => {
+  res.status(200).json({
+    service: "html-pdf-render",
+    routes: ["/health", "/html-to-pdf"]
+  });
+});
 
 app.get("/health", (req, res) => {
   res.status(200).send("ok");
@@ -77,9 +84,8 @@ app.post("/html-to-pdf", async (req, res) => {
     });
   }
 
-  // Chegou uma nova chamada? mata a anterior
   if (activeJob) {
-    await cancelActiveJob("Cancelled because a newer request arrived");
+    await cancelActiveJob("Cancelled because a newer request arrived", true);
   }
 
   const jobId = request_id || crypto.randomUUID();
@@ -94,9 +100,15 @@ app.post("/html-to-pdf", async (req, res) => {
 
   activeJob = job;
 
-  req.on("close", async () => {
+  req.on("aborted", async () => {
     if (activeJob?.id === jobId) {
-      await cancelActiveJob("Client disconnected");
+      await cancelActiveJob("Client aborted request", false);
+    }
+  });
+
+  res.on("close", async () => {
+    if (!res.writableEnded && activeJob?.id === jobId) {
+      await cancelActiveJob("Client disconnected", false);
     }
   });
 
