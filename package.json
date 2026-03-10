@@ -1,0 +1,14 @@
+{
+  "name": "html-pdf-render",
+  "version": "1.0.0",
+  "description": "Converte HTML em PDF com Puppeteer no Render",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "puppeteer": "^24.4.0"
+  }
+}
